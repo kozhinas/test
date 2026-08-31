@@ -11,7 +11,7 @@ permissions:
 jobs:
   generate-lock:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,17 +28,21 @@ jobs:
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
           cp package-lock.json package-lock.full.json
-      - name: Build metadata-reduced variants
+      - name: Build smaller variants
         working-directory: phase34-lock
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           const full = JSON.parse(fs.readFileSync('package-lock.full.json', 'utf8'));
           const workspaceKeys = new Set(['', 'mobile', 'server', 'packages/protocol']);
+          const base = ['version','link','dev','optional','devOptional','inBundle','hasInstallScript','os','cpu','libc'];
+          const edges = ['dependencies','optionalDependencies','peerDependencies','peerDependenciesMeta'];
           const variants = {
-            structural: new Set(['version','resolved','integrity','link','dev','optional','devOptional','inBundle','hasInstallScript','dependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','os','cpu','libc']),
-            lean: new Set(['version','resolved','integrity','link','dev','optional','devOptional','dependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','os','cpu','libc']),
-            registry: new Set(['version','link','dev','optional','devOptional','dependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','os','cpu','libc'])
+            bothNoEdges: new Set([...base,'resolved','integrity']),
+            resolvedNoEdges: new Set([...base,'resolved']),
+            integrityNoEdges: new Set([...base,'integrity']),
+            resolvedEdges: new Set([...base,...edges,'resolved']),
+            integrityEdges: new Set([...base,...edges,'integrity'])
           };
           for (const [name, keep] of Object.entries(variants)) {
             const out = {...full, packages:{}};
@@ -48,22 +52,20 @@ jobs:
                 continue;
               }
               const next = {};
-              for (const [key, value] of Object.entries(meta)) {
-                if (keep.has(key)) next[key] = value;
-              }
+              for (const [key, value] of Object.entries(meta)) if (keep.has(key)) next[key] = value;
               out.packages[path] = next;
             }
             fs.writeFileSync(`package-lock.${name}.json`, JSON.stringify(out));
           }
           NODE
-          wc -c package-lock.full.json package-lock.structural.json package-lock.lean.json package-lock.registry.json
+          wc -c package-lock.full.json package-lock.*Edges.json
       - name: Test variants with clean npm ci
         working-directory: phase34-lock
         shell: bash
         run: |
           set +e
           : > variant-results.txt
-          for variant in structural lean registry; do
+          for variant in bothNoEdges resolvedNoEdges integrityNoEdges resolvedEdges integrityEdges; do
             rm -rf node_modules mobile/node_modules server/node_modules packages/protocol/node_modules
             cp "package-lock.${variant}.json" package-lock.json
             before="$(sha256sum package-lock.json | awk '{print $1}')"
@@ -72,18 +74,18 @@ jobs:
             after="$(sha256sum package-lock.json | awk '{print $1}')"
             bytes="$(wc -c < package-lock.json)"
             echo "${variant}: status=${status} bytes=${bytes} unchanged=$([ "$before" = "$after" ] && echo yes || echo no) sha256=${after}" | tee -a variant-results.txt
-            if [ "$status" -ne 0 ]; then
-              tail -n 20 "npm-ci-${variant}.log"
-            fi
+            if [ "$status" -ne 0 ]; then tail -n 12 "npm-ci-${variant}.log"; fi
           done
           cat variant-results.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: phase34-lock-variants
+          name: phase34-lock-small-variants
           path: |
-            phase34-lock/package-lock.structural.json
-            phase34-lock/package-lock.lean.json
-            phase34-lock/package-lock.registry.json
+            phase34-lock/package-lock.bothNoEdges.json
+            phase34-lock/package-lock.resolvedNoEdges.json
+            phase34-lock/package-lock.integrityNoEdges.json
+            phase34-lock/package-lock.resolvedEdges.json
+            phase34-lock/package-lock.integrityEdges.json
             phase34-lock/variant-results.txt
           if-no-files-found: error
           retention-days: 1
