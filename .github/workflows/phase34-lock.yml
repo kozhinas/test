@@ -32,6 +32,19 @@ jobs:
           npm ci --workspace @private/protocol --workspace @private/server
           test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
           test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+      - name: Probe npm install-script policy and esbuild runtime
+        working-directory: phase34-lock
+        run: |
+          npm install-scripts ls --json | tee /tmp/install-scripts-pending.json
+          ./node_modules/.bin/esbuild --version
+          node -e "const esbuild=require('esbuild'); const out=esbuild.transformSync('const x = 1'); if (!out.code.includes('const x')) process.exit(1); console.log('esbuild-api-version=' + esbuild.version)"
+          cp package.json /tmp/package.before-approval.json
+          npm install-scripts approve esbuild
+          node -e "const p=require('./package.json'); console.log('allowScripts=' + JSON.stringify(p.allowScripts ?? null)); if (!p.allowScripts || p.allowScripts['esbuild@0.28.2'] !== true) process.exit(1)"
+          npm install-scripts ls --json | tee /tmp/install-scripts-after-approval.json
+          cp /tmp/package.before-approval.json package.json
+          test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
       - name: Validate server production dependency slice
         working-directory: phase34-lock
         run: |
