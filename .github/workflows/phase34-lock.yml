@@ -11,7 +11,7 @@ permissions:
 jobs:
   transport-lock:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,6 +51,26 @@ jobs:
           npm ci --omit=dev --workspace @private/protocol --workspace @private/server
           test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
           test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+      - name: Validate pinned Alpine image dependency slices
+        run: |
+          rm -rf /tmp/phase34-alpine-build /tmp/phase34-alpine-prod
+          cp -R phase34-lock /tmp/phase34-alpine-build
+          cp -R phase34-lock /tmp/phase34-alpine-prod
+          rm -rf /tmp/phase34-alpine-build/node_modules /tmp/phase34-alpine-prod/node_modules
+          docker run --rm -v /tmp/phase34-alpine-build:/work -w /work node:24.20.0-alpine3.24 sh -lc '
+            test "$(node -v)" = "v24.20.0" &&
+            test "$(npm -v)" = "11.19.0" &&
+            npm ci --workspace @private/protocol --workspace @private/server &&
+            test "$(sha256sum package-lock.json | awk '\''{print $1}'\'')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          '
+          docker run --rm -v /tmp/phase34-alpine-prod:/work -w /work node:24.20.0-alpine3.24 sh -lc '
+            test "$(node -v)" = "v24.20.0" &&
+            test "$(npm -v)" = "11.19.0" &&
+            npm ci --omit=dev --workspace @private/protocol --workspace @private/server &&
+            test "$(sha256sum package-lock.json | awk '\''{print $1}'\'')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          '
+          test "$(git hash-object /tmp/phase34-alpine-build/package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+          test "$(git hash-object /tmp/phase34-alpine-prod/package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
       - name: Upload verified canonical lockfile
         uses: actions/upload-artifact@v4
         with:
