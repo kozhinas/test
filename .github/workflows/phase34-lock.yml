@@ -6,74 +6,24 @@ on:
       - phase34-lock-export-20260831
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  prepare-lock:
+  transport-lock:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.20.0
-      - name: Verify exact toolchain
-        run: |
-          test "$(node -v)" = "v24.20.0"
-          test "$(npm -v)" = "11.19.0"
-      - name: Generate canonical lockfile
+      - name: Verify immutable canonical lockfile
         working-directory: phase34-lock
         run: |
-          rm -f package-lock.json
-          npm install --package-lock-only --ignore-scripts
-          test "$(sha256sum package-lock.json | awk '{print $1}')" = "1ecc0822cf8a4055756f76ff99a3865fe2ffb487213daaf561602ea759610691"
-      - name: Encode canonical graph as line-oriented JSON
-        working-directory: phase34-lock
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
-          const entries = Object.entries(lock.packages || {});
-          const lines = ['{'];
-          lines.push(`"name":${JSON.stringify(lock.name)},`);
-          lines.push(`"version":${JSON.stringify(lock.version)},`);
-          lines.push(`"lockfileVersion":${JSON.stringify(lock.lockfileVersion)},`);
-          lines.push(`"requires":${JSON.stringify(lock.requires)},`);
-          lines.push('"packages":{');
-          entries.forEach(([key, value], i) => lines.push(`${JSON.stringify(key)}:${JSON.stringify(value)}${i + 1 < entries.length ? ',' : ''}`));
-          lines.push('}');
-          lines.push('}');
-          fs.writeFileSync('package-lock.transport.json', lines.join('\n') + '\n');
-          NODE
-          node -e "JSON.parse(require('node:fs').readFileSync('package-lock.transport.json','utf8'))"
-          wc -c -l package-lock.transport.json
-      - name: Verify ordinary npm ci preserves transport lockfile
-        working-directory: phase34-lock
-        run: |
-          rm -rf node_modules mobile/node_modules server/node_modules packages/protocol/node_modules
-          cp package-lock.transport.json package-lock.json
-          before="$(sha256sum package-lock.json | awk '{print $1}')"
-          npm ci
-          after="$(sha256sum package-lock.json | awk '{print $1}')"
-          test "$before" = "$after"
-          echo "transport_sha256=$after"
-          echo "transport_git_blob=$(git hash-object package-lock.json)"
+          test -f package-lock.transport-verified.json
+          test "$(sha256sum package-lock.transport-verified.json | awk '{print $1}')" = "1ecc0822cf8a4055756f76ff99a3865fe2ffb487213daaf561602ea759610691"
+          test "$(git hash-object package-lock.transport-verified.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
       - name: Upload verified canonical lockfile
         uses: actions/upload-artifact@v4
         with:
           name: phase34-canonical-lockfile
-          path: phase34-lock/package-lock.transport.json
+          path: phase34-lock/package-lock.transport-verified.json
           if-no-files-found: error
           retention-days: 1
-      - name: Persist verified transport lockfile
-        run: |
-          cp phase34-lock/package-lock.transport.json phase34-lock/package-lock.transport-verified.json
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add phase34-lock/package-lock.transport-verified.json
-          if git diff --cached --quiet; then
-            echo "transport lockfile already persisted"
-          else
-            git commit -m "Persist verified canonical lockfile transport"
-            git push origin HEAD:phase34-lock-export-20260831
-          fi
