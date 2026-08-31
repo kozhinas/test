@@ -1,4 +1,4 @@
-name: Phase34 Lockfile Cross-Repo Probe
+name: Phase34 Canonical Lockfile Transport
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  export-lock:
+  prepare-lock:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -21,28 +21,52 @@ jobs:
         run: |
           test "$(node -v)" = "v24.20.0"
           test "$(npm -v)" = "11.19.0"
-      - name: Generate and verify canonical lockfile
+      - name: Generate canonical lockfile
         working-directory: phase34-lock
         run: |
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
           test "$(sha256sum package-lock.json | awk '{print $1}')" = "1ecc0822cf8a4055756f76ff99a3865fe2ffb487213daaf561602ea759610691"
-          npm ci --ignore-scripts
-          test "$(sha256sum package-lock.json | awk '{print $1}')" = "1ecc0822cf8a4055756f76ff99a3865fe2ffb487213daaf561602ea759610691"
-      - name: Probe repository-scoped token against private messenger temp branch
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Encode canonical graph as line-oriented JSON
+        working-directory: phase34-lock
         run: |
-          set -euo pipefail
-          remote="https://x-access-token:${GH_TOKEN}@github.com/kozhinas/messenger.git"
-          git -c credential.helper= fetch "$remote" tmp/phase34-lock-import-20260831
-          git worktree add /tmp/messenger-import FETCH_HEAD
-          cp phase34-lock/package-lock.json /tmp/messenger-import/package-lock.json
-          cd /tmp/messenger-import
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const entries = Object.entries(lock.packages || {});
+          const lines = ['{'];
+          lines.push(`"name":${JSON.stringify(lock.name)},`);
+          lines.push(`"version":${JSON.stringify(lock.version)},`);
+          lines.push(`"lockfileVersion":${JSON.stringify(lock.lockfileVersion)},`);
+          lines.push(`"requires":${JSON.stringify(lock.requires)},`);
+          lines.push('"packages":{');
+          entries.forEach(([key, value], i) => lines.push(`${JSON.stringify(key)}:${JSON.stringify(value)}${i + 1 < entries.length ? ',' : ''}`));
+          lines.push('}');
+          lines.push('}');
+          fs.writeFileSync('package-lock.transport.json', lines.join('\n') + '\n');
+          NODE
+          node -e "JSON.parse(require('node:fs').readFileSync('package-lock.transport.json','utf8'))"
+          wc -c -l package-lock.transport.json
+      - name: Verify ordinary npm ci preserves transport lockfile
+        working-directory: phase34-lock
+        run: |
+          rm -rf node_modules mobile/node_modules server/node_modules packages/protocol/node_modules
+          cp package-lock.transport.json package-lock.json
+          before="$(sha256sum package-lock.json | awk '{print $1}')"
+          npm ci
+          after="$(sha256sum package-lock.json | awk '{print $1}')"
+          test "$before" = "$after"
+          echo "transport_sha256=$after"
+          echo "transport_git_blob=$(git hash-object package-lock.json)"
+      - name: Persist verified transport lockfile
+        run: |
+          cp phase34-lock/package-lock.transport.json phase34-lock/package-lock.transport-verified.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          test -n "$(git diff --cached --name-only)"
-          test "$(git diff --cached --name-only)" = "package-lock.json"
-          git commit -m "Lock Phase 3/4 dependency graph"
-          git -c credential.helper= push "$remote" HEAD:tmp/phase34-lock-import-20260831
+          git add phase34-lock/package-lock.transport-verified.json
+          if git diff --cached --quiet; then
+            echo "transport lockfile already persisted"
+          else
+            git commit -m "Persist verified canonical lockfile transport"
+            git push origin HEAD:phase34-lock-export-20260831
+          fi
