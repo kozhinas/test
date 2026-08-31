@@ -11,7 +11,7 @@ permissions:
 jobs:
   generate-lock:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,7 +28,7 @@ jobs:
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
           cp package-lock.json package-lock.full.json
-      - name: Build minimal resolved variants
+      - name: Build security-preserving compact variants
         working-directory: phase34-lock
         run: |
           node <<'NODE'
@@ -36,10 +36,10 @@ jobs:
           const full = JSON.parse(fs.readFileSync('package-lock.full.json', 'utf8'));
           const workspaceKeys = new Set(['', 'mobile', 'server', 'packages/protocol']);
           const variants = {
-            minimal: new Set(['version','resolved','link']),
-            flags: new Set(['version','resolved','link','dev','optional','devOptional']),
-            platform: new Set(['version','resolved','link','os','cpu','libc']),
-            install: new Set(['version','resolved','link','hasInstallScript'])
+            core: new Set(['version','resolved','integrity','link']),
+            classified: new Set(['version','resolved','integrity','link','dev','optional','devOptional','peer']),
+            install: new Set(['version','resolved','integrity','link','dev','optional','devOptional','peer','os','cpu','libc','hasInstallScript']),
+            binengine: new Set(['version','resolved','integrity','link','dev','optional','devOptional','peer','os','cpu','libc','hasInstallScript','bin','engines'])
           };
           for (const [name, keep] of Object.entries(variants)) {
             const out = {...full, packages:{}};
@@ -55,33 +55,33 @@ jobs:
             fs.writeFileSync(`package-lock.${name}.json`, JSON.stringify(out));
           }
           NODE
-          wc -c package-lock.full.json package-lock.minimal.json package-lock.flags.json package-lock.platform.json package-lock.install.json
-      - name: Test variants with clean npm ci
+          wc -c package-lock.full.json package-lock.core.json package-lock.classified.json package-lock.install.json package-lock.binengine.json
+      - name: Test variants with canonical ordinary npm ci
         working-directory: phase34-lock
         shell: bash
         run: |
           set +e
           : > variant-results.txt
-          for variant in minimal flags platform install; do
+          for variant in core classified install binengine; do
             rm -rf node_modules mobile/node_modules server/node_modules packages/protocol/node_modules
             cp "package-lock.${variant}.json" package-lock.json
             before="$(sha256sum package-lock.json | awk '{print $1}')"
-            npm ci --ignore-scripts >"npm-ci-${variant}.log" 2>&1
+            npm ci >"npm-ci-${variant}.log" 2>&1
             status=$?
             after="$(sha256sum package-lock.json | awk '{print $1}')"
             bytes="$(wc -c < package-lock.json)"
             echo "${variant}: status=${status} bytes=${bytes} unchanged=$([ "$before" = "$after" ] && echo yes || echo no) sha256=${after}" | tee -a variant-results.txt
-            if [ "$status" -ne 0 ]; then tail -n 12 "npm-ci-${variant}.log"; fi
+            if [ "$status" -ne 0 ]; then tail -n 20 "npm-ci-${variant}.log"; fi
           done
           cat variant-results.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: phase34-lock-minimal-variants
+          name: phase34-lock-secure-variants
           path: |
-            phase34-lock/package-lock.minimal.json
-            phase34-lock/package-lock.flags.json
-            phase34-lock/package-lock.platform.json
+            phase34-lock/package-lock.core.json
+            phase34-lock/package-lock.classified.json
             phase34-lock/package-lock.install.json
+            phase34-lock/package-lock.binengine.json
             phase34-lock/variant-results.txt
           if-no-files-found: error
           retention-days: 1
