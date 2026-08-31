@@ -1,0 +1,44 @@
+{
+  "name": "private-p2p-messenger",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@11.19.0",
+  "workspaces": ["packages/*", "mobile", "server"],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build:protocol": "npm run build -w @private/protocol",
+    "typecheck": "npm run typecheck -w @private/protocol && npm run typecheck -w @private/mobile && npm run typecheck -w @private/server",
+    "lint": "eslint . --max-warnings=0",
+    "lockfile:generate": "node scripts/phase-3-4-generate-lockfile.mjs",
+    "lockfile:import": "node scripts/phase-3-4-import-lockfile.mjs",
+    "lockfile:check": "node scripts/phase-3-4-lockfile-check.mjs --strict",
+    "validate:phase34-static": "node scripts/phase-3-4-static-validation.mjs",
+    "test:architecture": "node scripts/phase-3-4-static-validation.mjs && node scripts/phase-3-4-lockfile-check.mjs --strict",
+    "test": "npm run test:architecture && npm run test -w @private/protocol && npm run test -w @private/mobile && npm run test -w @private/server",
+    "validate:phase34-code": "node scripts/phase-3-4-code-validation.mjs",
+    "doctor:phase34": "node scripts/phase-3-4-toolchain-check.mjs --exact && node scripts/phase-3-4-lockfile-check.mjs --warn && node scripts/phase-3-4-doctor.mjs",
+    "doctor:phase34:deploy": "node scripts/phase-3-4-toolchain-check.mjs && node scripts/phase-3-4-lockfile-check.mjs --warn && node scripts/phase-3-4-compose-doctor.mjs",
+    "native:android:phase34": "node scripts/phase-3-4-native-build.mjs android",
+    "native:ios:phase34": "node scripts/phase-3-4-native-build.mjs ios",
+    "preflight:phase34": "node scripts/phase-3-4-lockfile-check.mjs --strict && node scripts/deployment-binding-preflight.mjs && node scripts/phase-3-4-compose-doctor.mjs && node scripts/container-image-boundary-guard.mjs && node scripts/docker-context-guard.mjs && node scripts/compose-secret-exposure-guard.mjs && node scripts/secret-file-permissions-guard.mjs && node scripts/turn-secret-boundary-guard.mjs --production && node scripts/coturn-persistence-guard.mjs && node scripts/public-ip-preflight.mjs && node scripts/phase-3-4-preflight.mjs",
+    "compose:phase34:config": "node scripts/deployment-binding-preflight.mjs && node scripts/phase-3-4-compose-doctor.mjs && node scripts/container-image-boundary-guard.mjs && node scripts/compose-secret-exposure-guard.mjs && node scripts/secret-file-permissions-guard.mjs && node scripts/turn-secret-boundary-guard.mjs --production && node scripts/coturn-persistence-guard.mjs && node scripts/public-ip-preflight.mjs && node scripts/phase-3-4-compose.mjs config",
+    "deploy:phase34": "node scripts/phase-3-4-deploy.mjs",
+    "record:phase34-evidence": "node scripts/phase-3-4-record-device-evidence.mjs",
+    "validate:phase34-deployment-evidence": "node scripts/validate-phase-3-4-deployment-evidence.mjs",
+    "validate:phase34-evidence": "node scripts/validate-phase-3-4-evidence.mjs",
+    "gate:phase34": "node scripts/phase-3-4-gate.mjs",
+    "closure:phase34": "node scripts/phase-3-4-closure.mjs",
+    "closure:phase34:docker": "node scripts/phase-3-4-docker-closure.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "eslint": "^10.0.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.68.0"
+  }
+}
