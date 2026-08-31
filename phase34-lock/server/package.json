@@ -1,0 +1,27 @@
+{
+  "name": "@private/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "prestart": "npm run build -w @private/protocol",
+    "start": "tsx src/server.ts",
+    "prebuild": "npm run build -w @private/protocol",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "pretest": "npm run build -w @private/protocol",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@private/protocol": "*",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.4"
+  }
+}
