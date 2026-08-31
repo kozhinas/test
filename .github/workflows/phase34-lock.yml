@@ -28,21 +28,18 @@ jobs:
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
           cp package-lock.json package-lock.full.json
-      - name: Build smaller variants
+      - name: Build minimal resolved variants
         working-directory: phase34-lock
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           const full = JSON.parse(fs.readFileSync('package-lock.full.json', 'utf8'));
           const workspaceKeys = new Set(['', 'mobile', 'server', 'packages/protocol']);
-          const base = ['version','link','dev','optional','devOptional','inBundle','hasInstallScript','os','cpu','libc'];
-          const edges = ['dependencies','optionalDependencies','peerDependencies','peerDependenciesMeta'];
           const variants = {
-            bothNoEdges: new Set([...base,'resolved','integrity']),
-            resolvedNoEdges: new Set([...base,'resolved']),
-            integrityNoEdges: new Set([...base,'integrity']),
-            resolvedEdges: new Set([...base,...edges,'resolved']),
-            integrityEdges: new Set([...base,...edges,'integrity'])
+            minimal: new Set(['version','resolved','link']),
+            flags: new Set(['version','resolved','link','dev','optional','devOptional']),
+            platform: new Set(['version','resolved','link','os','cpu','libc']),
+            install: new Set(['version','resolved','link','hasInstallScript'])
           };
           for (const [name, keep] of Object.entries(variants)) {
             const out = {...full, packages:{}};
@@ -58,14 +55,14 @@ jobs:
             fs.writeFileSync(`package-lock.${name}.json`, JSON.stringify(out));
           }
           NODE
-          wc -c package-lock.full.json package-lock.*Edges.json
+          wc -c package-lock.full.json package-lock.minimal.json package-lock.flags.json package-lock.platform.json package-lock.install.json
       - name: Test variants with clean npm ci
         working-directory: phase34-lock
         shell: bash
         run: |
           set +e
           : > variant-results.txt
-          for variant in bothNoEdges resolvedNoEdges integrityNoEdges resolvedEdges integrityEdges; do
+          for variant in minimal flags platform install; do
             rm -rf node_modules mobile/node_modules server/node_modules packages/protocol/node_modules
             cp "package-lock.${variant}.json" package-lock.json
             before="$(sha256sum package-lock.json | awk '{print $1}')"
@@ -79,13 +76,12 @@ jobs:
           cat variant-results.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: phase34-lock-small-variants
+          name: phase34-lock-minimal-variants
           path: |
-            phase34-lock/package-lock.bothNoEdges.json
-            phase34-lock/package-lock.resolvedNoEdges.json
-            phase34-lock/package-lock.integrityNoEdges.json
-            phase34-lock/package-lock.resolvedEdges.json
-            phase34-lock/package-lock.integrityEdges.json
+            phase34-lock/package-lock.minimal.json
+            phase34-lock/package-lock.flags.json
+            phase34-lock/package-lock.platform.json
+            phase34-lock/package-lock.install.json
             phase34-lock/variant-results.txt
           if-no-files-found: error
           retention-days: 1
