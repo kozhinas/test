@@ -1,0 +1,26 @@
+{
+  "name": "@private/protocol",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "react-native": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "react-native": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.4"
+  }
+}
