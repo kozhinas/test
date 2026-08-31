@@ -6,7 +6,7 @@ on:
       - phase34-lock-export-20260831
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate-lock:
@@ -32,6 +32,17 @@ jobs:
       - name: Verify npm ci reproducibility
         working-directory: phase34-lock
         run: npm ci --ignore-scripts
+      - name: Persist exact lockfile in scratch branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add phase34-lock/package-lock.json
+          if git diff --cached --quiet; then
+            echo "lockfile already persisted"
+          else
+            git commit -m "Persist generated Phase 3/4 lockfile"
+            git push origin HEAD:phase34-lock-export-20260831
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: phase34-package-lock
