@@ -1,0 +1,37 @@
+name: Phase34 Lockfile Export
+
+on:
+  push:
+    branches:
+      - phase34-lock-export-20260831
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Verify exact toolchain
+        working-directory: phase34-lock
+        run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+      - name: Generate lockfile only
+        working-directory: phase34-lock
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Verify lockfile metadata
+        working-directory: phase34-lock
+        run: |
+          node -e "const l=require('./package-lock.json'); if(l.lockfileVersion!==3) process.exit(1); console.log(JSON.stringify({lockfileVersion:l.lockfileVersion,packages:Object.keys(l.packages||{}).length}))"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase34-package-lock
+          path: phase34-lock/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
