@@ -29,6 +29,9 @@ jobs:
         working-directory: phase34-lock
         run: |
           node -e "const l=require('./package-lock.json'); if(l.lockfileVersion!==3) process.exit(1); console.log(JSON.stringify({lockfileVersion:l.lockfileVersion,packages:Object.keys(l.packages||{}).length}))"
+      - name: Verify npm ci reproducibility
+        working-directory: phase34-lock
+        run: npm ci --ignore-scripts
       - uses: actions/upload-artifact@v4
         with:
           name: phase34-package-lock
