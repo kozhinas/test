@@ -58,6 +58,13 @@ jobs:
           test "$before" = "$after"
           echo "transport_sha256=$after"
           echo "transport_git_blob=$(git hash-object package-lock.json)"
+      - name: Upload verified canonical lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase34-canonical-lockfile
+          path: phase34-lock/package-lock.transport.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Persist verified transport lockfile
         run: |
           cp phase34-lock/package-lock.transport.json phase34-lock/package-lock.transport-verified.json
