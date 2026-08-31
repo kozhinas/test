@@ -33,6 +33,36 @@ jobs:
           test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
           test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
           node -e "for (const name of ['typescript','eslint','vitest','expo','react-native','react-native-webrtc']) { const p=require('./node_modules/' + name + '/package.json'); console.log(name + '=' + p.version) }"
+      - name: Classify locked audit findings
+        working-directory: phase34-lock
+        run: |
+          npm audit --json > /tmp/audit-all.json || true
+          npm audit --omit=dev --json > /tmp/audit-runtime.json || true
+          npm audit --omit=dev --workspace @private/mobile --json > /tmp/audit-mobile-runtime.json || true
+          npm audit --omit=dev --workspace @private/server --json > /tmp/audit-server-runtime.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          for (const [label, file] of [
+            ['all', '/tmp/audit-all.json'],
+            ['runtime', '/tmp/audit-runtime.json'],
+            ['mobile-runtime', '/tmp/audit-mobile-runtime.json'],
+            ['server-runtime', '/tmp/audit-server-runtime.json'],
+          ]) {
+            const audit = JSON.parse(fs.readFileSync(file, 'utf8'));
+            console.log(`AUDIT ${label} summary=${JSON.stringify(audit.metadata?.vulnerabilities ?? null)}`);
+            for (const [name, value] of Object.entries(audit.vulnerabilities ?? {})) {
+              const via = (value.via ?? []).map((entry) => typeof entry === 'string' ? entry : {
+                name: entry.name,
+                severity: entry.severity,
+                title: entry.title,
+                range: entry.range,
+              });
+              console.log(`AUDIT ${label} finding=${JSON.stringify({name,severity:value.severity,isDirect:value.isDirect,via,effects:value.effects,range:value.range,fixAvailable:value.fixAvailable})}`);
+            }
+          }
+          NODE
+          test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
       - name: Probe npm install-script policy and esbuild runtime
         working-directory: phase34-lock
         run: |
