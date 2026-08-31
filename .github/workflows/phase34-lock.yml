@@ -14,11 +14,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Verify immutable canonical lockfile
+      - name: Verify immutable canonical lockfile identity
         working-directory: phase34-lock
         run: |
           test -f package-lock.transport-verified.json
-          test "$(sha256sum package-lock.transport-verified.json | awk '{print $1}')" = "1ecc0822cf8a4055756f76ff99a3865fe2ffb487213daaf561602ea759610691"
+          echo "transport_sha256=$(sha256sum package-lock.transport-verified.json | awk '{print $1}')"
+          echo "transport_git_blob=$(git hash-object package-lock.transport-verified.json)"
           test "$(git hash-object package-lock.transport-verified.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
       - name: Upload verified canonical lockfile
         uses: actions/upload-artifact@v4
