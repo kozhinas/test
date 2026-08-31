@@ -11,16 +11,33 @@ permissions:
 jobs:
   transport-lock:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
       - name: Verify immutable canonical lockfile identity
         working-directory: phase34-lock
         run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
           test -f package-lock.transport-verified.json
-          echo "transport_sha256=$(sha256sum package-lock.transport-verified.json | awk '{print $1}')"
-          echo "transport_git_blob=$(git hash-object package-lock.transport-verified.json)"
-          test "$(git hash-object package-lock.transport-verified.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+          cp package-lock.transport-verified.json package-lock.json
+          test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+      - name: Validate server build dependency slice
+        working-directory: phase34-lock
+        run: |
+          npm ci --workspace @private/protocol --workspace @private/server
+          test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+      - name: Validate server production dependency slice
+        working-directory: phase34-lock
+        run: |
+          npm ci --omit=dev --workspace @private/protocol --workspace @private/server
+          test "$(sha256sum package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
       - name: Upload verified canonical lockfile
         uses: actions/upload-artifact@v4
         with:
