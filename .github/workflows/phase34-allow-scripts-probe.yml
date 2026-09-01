@@ -20,6 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           cp package-lock.transport-verified.json package-lock.json
+          rm -f .npmrc
           node <<'NODE'
           const fs = require('node:fs');
           const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -29,8 +30,7 @@ jobs:
           };
           fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
           NODE
-          printf 'strict-allow-scripts=true\n' > .npmrc
-          npm ci
+          npm ci --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false
           test "$(./node_modules/.bin/esbuild --version)" = "0.28.2"
       - name: Negative missing approval must hard fail
         working-directory: phase34-lock
@@ -45,7 +45,7 @@ jobs:
           NODE
           rm -rf node_modules
           set +e
-          output="$(npm ci 2>&1)"
+          output="$(npm ci --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false 2>&1)"
           status=$?
           set -e
           printf '%s\n' "$output"
