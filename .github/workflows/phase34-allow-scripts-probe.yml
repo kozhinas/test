@@ -7,6 +7,15 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    env:
+      npm_config_registry: https://evil.example.invalid/
+      npm_config_replace_registry_host: always
+      npm_config_strict_allow_scripts: 'false'
+      npm_config_dangerously_allow_all_scripts: 'true'
+      npm_config_ignore_scripts: 'true'
+      npm_config_strict_ssl: 'false'
+      npm_config_audit: 'true'
+      npm_config_fund: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,7 +23,7 @@ jobs:
           node-version: 24.20.0
       - name: Verify exact npm
         run: test "$(npm -v)" = "11.19.0"
-      - name: Positive strict allowScripts install
+      - name: Positive explicit policy overrides hostile env
         working-directory: phase34-lock
         shell: bash
         run: |
@@ -30,9 +39,17 @@ jobs:
           };
           fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
           NODE
-          npm ci --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false
+          npm ci \
+            --registry=https://registry.npmjs.org/ \
+            --replace-registry-host=never \
+            --strict-allow-scripts=true \
+            --dangerously-allow-all-scripts=false \
+            --ignore-scripts=false \
+            --strict-ssl=true \
+            --audit=false \
+            --fund=false
           test "$(./node_modules/.bin/esbuild --version)" = "0.28.2"
-      - name: Negative missing approval must hard fail
+      - name: Negative missing approval must hard fail despite hostile env
         working-directory: phase34-lock
         shell: bash
         run: |
@@ -45,7 +62,15 @@ jobs:
           NODE
           rm -rf node_modules
           set +e
-          output="$(npm ci --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false 2>&1)"
+          output="$(npm ci \
+            --registry=https://registry.npmjs.org/ \
+            --replace-registry-host=never \
+            --strict-allow-scripts=true \
+            --dangerously-allow-all-scripts=false \
+            --ignore-scripts=false \
+            --strict-ssl=true \
+            --audit=false \
+            --fund=false 2>&1)"
           status=$?
           set -e
           printf '%s\n' "$output"
