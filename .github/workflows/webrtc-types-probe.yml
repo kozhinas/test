@@ -19,17 +19,17 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24.20.0
-      - name: Install pinned graph
-        working-directory: phase34-lock
+      - name: Install exact WebRTC package for declaration inspection
         run: |
-          cp package-lock.transport-verified.json package-lock.json
-          npm ci --registry=https://registry.npmjs.org/ --replace-registry-host=never --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false --strict-ssl=true --audit=false --fund=false
+          mkdir /tmp/webrtc-types
+          cd /tmp/webrtc-types
+          npm init -y >/dev/null
+          npm install --ignore-scripts --audit=false --fund=false --save-exact react-native-webrtc@124.0.8
       - name: Show published WebRTC declarations
-        working-directory: phase34-lock
         run: |
           echo '=== RTCPeerConnection.d.ts ==='
-          cat node_modules/react-native-webrtc/lib/typescript/RTCPeerConnection.d.ts
+          cat /tmp/webrtc-types/node_modules/react-native-webrtc/lib/typescript/RTCPeerConnection.d.ts
           echo '=== RTCDataChannel.d.ts ==='
-          cat node_modules/react-native-webrtc/lib/typescript/RTCDataChannel.d.ts
+          cat /tmp/webrtc-types/node_modules/react-native-webrtc/lib/typescript/RTCDataChannel.d.ts
           echo '=== index.d.ts ==='
-          cat node_modules/react-native-webrtc/lib/typescript/index.d.ts
+          cat /tmp/webrtc-types/node_modules/react-native-webrtc/lib/typescript/index.d.ts
