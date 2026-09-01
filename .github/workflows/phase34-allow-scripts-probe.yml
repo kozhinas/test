@@ -1,0 +1,53 @@
+name: Phase34 allowScripts probe
+
+on:
+  push:
+    branches: [phase34-lock-export-20260831]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Verify exact npm
+        run: test "$(npm -v)" = "11.19.0"
+      - name: Positive strict allowScripts install
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp package-lock.transport-verified.json package-lock.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          p.allowScripts = {
+            'esbuild@0.28.2': true,
+            'fsevents@2.3.3': true,
+          };
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          printf 'strict-allow-scripts=true\n' > .npmrc
+          npm ci
+          test "$(./node_modules/.bin/esbuild --version)" = "0.28.2"
+      - name: Negative missing approval must hard fail
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          delete p.allowScripts['esbuild@0.28.2'];
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          rm -rf node_modules
+          set +e
+          output="$(npm ci 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -ne 0
+          printf '%s\n' "$output" | grep -q 'ESTRICTALLOWSCRIPTS'
