@@ -21,13 +21,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.20.0
-      - name: Verify exact npm
-        run: test "$(npm -v)" = "11.19.0"
-      - name: Positive explicit policy overrides hostile env
+      - name: Verify exact npm and prepare approvals
         working-directory: phase34-lock
         shell: bash
         run: |
           set -euo pipefail
+          test "$(npm -v)" = "11.19.0"
           cp package-lock.transport-verified.json package-lock.json
           rm -f .npmrc
           node <<'NODE'
@@ -39,6 +38,12 @@ jobs:
           };
           fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
           NODE
+          test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+      - name: Positive explicit policy overrides hostile env
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
           npm ci \
             --registry=https://registry.npmjs.org/ \
             --replace-registry-host=never \
@@ -49,6 +54,7 @@ jobs:
             --audit=false \
             --fund=false
           test "$(./node_modules/.bin/esbuild --version)" = "0.28.2"
+          test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
       - name: Negative missing approval must hard fail despite hostile env
         working-directory: phase34-lock
         shell: bash
@@ -76,3 +82,49 @@ jobs:
           printf '%s\n' "$output"
           test "$status" -ne 0
           printf '%s\n' "$output" | grep -q 'ESTRICTALLOWSCRIPTS'
+      - name: Docker build-stage workspace install policy
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          p.allowScripts = {
+            'esbuild@0.28.2': true,
+            'fsevents@2.3.3': true,
+          };
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          rm -rf node_modules
+          npm ci \
+            --registry=https://registry.npmjs.org/ \
+            --replace-registry-host=never \
+            --strict-allow-scripts=true \
+            --dangerously-allow-all-scripts=false \
+            --ignore-scripts=false \
+            --strict-ssl=true \
+            --audit=false \
+            --fund=false \
+            --workspace @private/protocol \
+            --workspace @private/server
+          test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+      - name: Docker production workspace install policy
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf node_modules
+          npm ci \
+            --registry=https://registry.npmjs.org/ \
+            --replace-registry-host=never \
+            --strict-allow-scripts=true \
+            --dangerously-allow-all-scripts=false \
+            --ignore-scripts=false \
+            --strict-ssl=true \
+            --audit=false \
+            --fund=false \
+            --omit=dev \
+            --workspace @private/protocol \
+            --workspace @private/server
+          test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
