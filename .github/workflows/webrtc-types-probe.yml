@@ -1,0 +1,35 @@
+name: WebRTC Types Probe
+
+on:
+  push:
+    branches: [phase34-lock-export-20260831]
+    paths:
+      - .github/workflows/webrtc-types-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Install pinned graph
+        working-directory: phase34-lock
+        run: |
+          cp package-lock.transport-verified.json package-lock.json
+          npm ci --registry=https://registry.npmjs.org/ --replace-registry-host=never --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false --strict-ssl=true --audit=false --fund=false
+      - name: Show published WebRTC declarations
+        working-directory: phase34-lock
+        run: |
+          echo '=== RTCPeerConnection.d.ts ==='
+          cat node_modules/react-native-webrtc/lib/typescript/RTCPeerConnection.d.ts
+          echo '=== RTCDataChannel.d.ts ==='
+          cat node_modules/react-native-webrtc/lib/typescript/RTCDataChannel.d.ts
+          echo '=== index.d.ts ==='
+          cat node_modules/react-native-webrtc/lib/typescript/index.d.ts
