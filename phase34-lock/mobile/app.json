@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "name": "Phase34 Metro Entry Probe",
+    "slug": "phase34-metro-entry-probe",
+    "version": "1.0.0",
+    "platforms": ["android"]
+  }
+}
