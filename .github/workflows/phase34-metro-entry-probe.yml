@@ -31,7 +31,6 @@ jobs:
         run: |
           test "$(node -p "require('./packages/protocol/package.json')['react-native']")" = "dist/index.js"
           test "$(node -p "require('./packages/protocol/package.json').exports['.']['react-native']")" = "./dist/index.js"
-          test "$(node -p "require('./packages/protocol/dist/signaling.js').protocolProbe" 2>/dev/null || true)" = "" || true
       - name: Export synthetic Android bundle through Metro
         working-directory: phase34-lock/mobile
         env:
@@ -41,3 +40,17 @@ jobs:
           ../node_modules/.bin/expo export --platform android --output-dir /tmp/phase34-metro-entry-probe --clear
           test -d /tmp/phase34-metro-entry-probe
           find /tmp/phase34-metro-entry-probe -type f -size +0c | grep -q .
+      - name: Prebuild synthetic Android project
+        working-directory: phase34-lock/mobile
+        env:
+          NODE_ENV: production
+          EXPO_NO_TELEMETRY: "1"
+        run: ../node_modules/.bin/expo prebuild --clean --no-install --platform android
+      - name: Assemble synthetic arm64 Release
+        working-directory: phase34-lock/mobile/android
+        env:
+          NODE_ENV: production
+          EXPO_NO_TELEMETRY: "1"
+        run: |
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --stacktrace
+          test -s app/build/outputs/apk/release/app-release.apk
