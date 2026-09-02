@@ -3,6 +3,9 @@
     "name": "Phase34 Metro Entry Probe",
     "slug": "phase34-metro-entry-probe",
     "version": "1.0.0",
-    "platforms": ["android"]
+    "platforms": ["android"],
+    "android": {
+      "package": "com.example.phase34metroprobe"
+    }
   }
 }
