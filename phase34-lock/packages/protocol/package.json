@@ -4,12 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
-  "react-native": "src/index.ts",
+  "react-native": "dist/index.js",
   "types": "src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "react-native": "./src/index.ts",
+      "react-native": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
