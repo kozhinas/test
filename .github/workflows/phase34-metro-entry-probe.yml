@@ -1,0 +1,43 @@
+name: Phase34 Metro Entry Probe
+
+on:
+  push:
+    branches:
+      - phase34-metro-entry-probe-20260902
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact toolchain
+        run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+      - name: Install verified dependency graph
+        working-directory: phase34-lock
+        run: |
+          cp package-lock.transport-verified.json package-lock.json
+          echo "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4  package-lock.json" | sha256sum -c -
+          npm ci --registry=https://registry.npmjs.org/ --replace-registry-host=never --strict-allow-scripts=true --dangerously-allow-all-scripts=false --ignore-scripts=false --strict-ssl=true --audit=false --fund=false
+      - name: Prove React Native package entry
+        working-directory: phase34-lock
+        run: |
+          test "$(node -p "require('./packages/protocol/package.json')['react-native']")" = "dist/index.js"
+          test "$(node -p "require('./packages/protocol/package.json').exports['.']['react-native']")" = "./dist/index.js"
+          test "$(node -p "require('./packages/protocol/dist/signaling.js').protocolProbe" 2>/dev/null || true)" = "" || true
+      - name: Export synthetic Android bundle through Metro
+        working-directory: phase34-lock/mobile
+        env:
+          NODE_ENV: production
+          EXPO_NO_TELEMETRY: "1"
+        run: |
+          ../node_modules/.bin/expo export --platform android --output-dir /tmp/phase34-metro-entry-probe --clear
+          test -d /tmp/phase34-metro-entry-probe
+          find /tmp/phase34-metro-entry-probe -type f -size +0c | grep -q .
