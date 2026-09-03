@@ -1,0 +1,44 @@
+name: Phase34 npm env proof
+
+on:
+  push:
+    branches: [phase34-npm-env-proof-20260904]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: phase34-npm-env-proof
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # releases-v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.20.0
+      - name: Verify exact npm toolchain
+        run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+      - name: Reproduce ambient allow-scripts EALLOWSCRIPTS
+        env:
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/phase34-ambient.npmrc
+        run: |
+          printf '%s\n' 'allow-scripts=unexpected-package' > "$NPM_CONFIG_USERCONFIG"
+          set +e
+          npm run inner-ci > "$RUNNER_TEMP/phase34-unsanitized.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/phase34-unsanitized.log"
+          test "$status" -ne 0
+          grep -q 'EALLOWSCRIPTS' "$RUNNER_TEMP/phase34-unsanitized.log"
+      - name: Prove sanitized inner npm ci succeeds
+        env:
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/phase34-ambient.npmrc
+        run: |
+          printf '%s\n' 'allow-scripts=unexpected-package' > "$NPM_CONFIG_USERCONFIG"
+          npm run sanitized-ci
