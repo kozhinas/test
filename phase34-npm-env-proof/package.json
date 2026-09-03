@@ -1,0 +1,9 @@
+{
+  "name": "phase34-npm-env-proof",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "inner-ci": "npm ci --ignore-scripts",
+    "sanitized-ci": "node sanitized-ci.mjs"
+  }
+}
