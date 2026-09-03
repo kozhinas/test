@@ -19,9 +19,13 @@ const env = { ...process.env };
 for (const key of Object.keys(env)) {
   if (key.toLowerCase().startsWith('npm_config_')) delete env[key];
 }
-const emptyConfigPath = path.join(root, 'empty.npmrc');
-env.npm_config_userconfig = emptyConfigPath;
-env.npm_config_globalconfig = emptyConfigPath;
+const userConfigPath = path.join(root, 'empty.npmrc');
+const globalConfigPath = path.join(root, 'empty-global.npmrc');
+if (userConfigPath === globalConfigPath) {
+  throw new Error('sanitizer failed: user/global npm config paths must be distinct');
+}
+env.npm_config_userconfig = userConfigPath;
+env.npm_config_globalconfig = globalConfigPath;
 
 const remainingAmbient = Object.keys(env).filter(
   (key) =>
@@ -58,5 +62,5 @@ if (result.status !== 0) {
 }
 
 console.info(
-  `phase34 npm env proof ok observed-ambient=${ambientAllowScripts[0]} scrubbed=true pinned-userconfig=true pinned-globalconfig=true`,
+  `phase34 npm env proof ok observed-ambient=${ambientAllowScripts[0]} scrubbed=true pinned-userconfig=true pinned-globalconfig=true distinct-config-files=true`,
 );
