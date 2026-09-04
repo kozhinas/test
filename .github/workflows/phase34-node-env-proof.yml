@@ -10,11 +10,16 @@ jobs:
   prove:
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24.20.0
       - name: Pin npm
         run: npm install --global npm@11.19.0 --audit=false --fund=false
+      - name: Run updated Phase 3/4 npm environment selftest
+        run: node scripts/phase-3-4-npm-install-env.mjs --selftest
       - name: Prove ambient NODE_ENV changes npm ci dev dependency install
         shell: bash
         run: |
