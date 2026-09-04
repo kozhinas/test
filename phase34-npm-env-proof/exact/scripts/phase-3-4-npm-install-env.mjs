@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url';
 const modulePath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(modulePath), '..');
 const NPM_CONFIG_PREFIX = 'npm_config_';
+const FORBIDDEN_NODE_RUNTIME_ENV = ['NODE_OPTIONS', 'NODE_PATH'];
 
 export function phase34NpmInstallEnvironment(root = defaultRoot, baseEnv = process.env) {
+  assertPhase34NodeRuntimeBoundary(baseEnv);
   const { userConfigPath, globalConfigPath } = assertPhase34NpmConfigBoundary(root);
 
   const env = { ...baseEnv };
@@ -17,6 +19,17 @@ export function phase34NpmInstallEnvironment(root = defaultRoot, baseEnv = proce
   env.npm_config_userconfig = userConfigPath;
   env.npm_config_globalconfig = globalConfigPath;
   return env;
+}
+
+export function assertPhase34NodeRuntimeBoundary(baseEnv = process.env) {
+  for (const key of FORBIDDEN_NODE_RUNTIME_ENV) {
+    const value = baseEnv[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      throw new Error(
+        `phase34 npm install env: ${key} must be unset for acceptance because it can alter Node code loading/runtime resolution`,
+      );
+    }
+  }
 }
 
 export function assertPhase34NpmConfigBoundary(root = defaultRoot) {
@@ -103,7 +116,22 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
     throw new Error('phase34 npm install env selftest: pinned user/global npmrc paths are incorrect or not distinct');
   }
 
+  for (const [key, value] of [
+    ['NODE_OPTIONS', '--require=/tmp/phase34-untrusted-preload.js'],
+    ['NODE_PATH', '/tmp/phase34-untrusted-modules'],
+  ]) {
+    let rejected = false;
+    try {
+      phase34NpmInstallEnvironment(defaultRoot, { ...fakeEnv, [key]: value });
+    } catch (error) {
+      rejected = error instanceof Error && error.message.includes(`${key} must be unset`);
+    }
+    if (!rejected) {
+      throw new Error(`phase34 npm install env selftest: dangerous ${key} was not rejected`);
+    }
+  }
+
   console.info(
-    'phase-3-4.npm-install-env selftest ok ambient-npm-config=scrubbed userconfig=pinned-empty globalconfig=pinned-empty distinct-config-files project-npmrc=forbidden',
+    'phase-3-4.npm-install-env selftest ok ambient-npm-config=scrubbed node-runtime-injection=forbidden userconfig=pinned-empty globalconfig=pinned-empty distinct-config-files project-npmrc=forbidden',
   );
 }
