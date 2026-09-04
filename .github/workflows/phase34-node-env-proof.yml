@@ -1,0 +1,49 @@
+name: Phase34 NODE_ENV proof
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Pin npm
+        run: npm install --global npm@11.19.0 --audit=false --fund=false
+      - name: Prove ambient NODE_ENV changes npm ci dev dependency install
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          mkdir fixture
+          cd fixture
+          cat > package.json <<'JSON'
+          {
+            "name": "phase34-node-env-proof",
+            "version": "1.0.0",
+            "private": true,
+            "devDependencies": {
+              "typescript": "6.0.3"
+            }
+          }
+          JSON
+          npm install --package-lock-only --ignore-scripts --audit=false --fund=false
+          rm -rf node_modules
+          NODE_ENV=production npm ci --ignore-scripts --audit=false --fund=false
+          if test -e node_modules/typescript; then
+            echo "unexpected: dev dependency installed with NODE_ENV=production" >&2
+            exit 1
+          fi
+          rm -rf node_modules
+          env -u NODE_ENV npm ci --ignore-scripts --audit=false --fund=false
+          test -e node_modules/typescript
+          rm -rf node_modules
+          NODE_ENV=production npm ci --include=dev --ignore-scripts --audit=false --fund=false
+          test -e node_modules/typescript
+          echo "phase34 NODE_ENV proof ok: ambient production omits dev; unset/include=dev restores deterministic dev install"
