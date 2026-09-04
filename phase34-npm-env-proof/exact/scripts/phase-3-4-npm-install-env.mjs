@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const modulePath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(modulePath), '..');
 const NPM_CONFIG_PREFIX = 'npm_config_';
-const FORBIDDEN_NODE_RUNTIME_ENV = ['NODE_OPTIONS', 'NODE_PATH'];
+const FORBIDDEN_NODE_RUNTIME_ENV = new Set(['node_options', 'node_path']);
 
 export function phase34NpmInstallEnvironment(root = defaultRoot, baseEnv = process.env) {
   assertPhase34NodeRuntimeBoundary(baseEnv);
@@ -22,8 +22,8 @@ export function phase34NpmInstallEnvironment(root = defaultRoot, baseEnv = proce
 }
 
 export function assertPhase34NodeRuntimeBoundary(baseEnv = process.env) {
-  for (const key of FORBIDDEN_NODE_RUNTIME_ENV) {
-    const value = baseEnv[key];
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (!FORBIDDEN_NODE_RUNTIME_ENV.has(key.toLowerCase())) continue;
     if (typeof value === 'string' && value.trim().length > 0) {
       throw new Error(
         `phase34 npm install env: ${key} must be unset for acceptance because it can alter Node code loading/runtime resolution`,
@@ -118,7 +118,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
 
   for (const [key, value] of [
     ['NODE_OPTIONS', '--require=/tmp/phase34-untrusted-preload.js'],
+    ['node_options', '--require=/tmp/phase34-untrusted-preload.js'],
     ['NODE_PATH', '/tmp/phase34-untrusted-modules'],
+    ['NoDe_PaTh', '/tmp/phase34-untrusted-modules'],
   ]) {
     let rejected = false;
     try {
@@ -132,6 +134,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
   }
 
   console.info(
-    'phase-3-4.npm-install-env selftest ok ambient-npm-config=scrubbed node-runtime-injection=forbidden userconfig=pinned-empty globalconfig=pinned-empty distinct-config-files project-npmrc=forbidden',
+    'phase-3-4.npm-install-env selftest ok ambient-npm-config=scrubbed node-runtime-injection=forbidden-case-insensitive userconfig=pinned-empty globalconfig=pinned-empty distinct-config-files project-npmrc=forbidden',
   );
 }
