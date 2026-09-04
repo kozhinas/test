@@ -1,0 +1,36 @@
+name: Phase34 Pre-Node Boundary Proof
+
+on:
+  push:
+    branches:
+      - phase34-pre-node-boundary-proof-20260904
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact toolchain and copied blobs
+        run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object safe-proof/scripts/phase-3-4-npm-install-env.mjs)" = "d4bf116740961e07a4a7c3e489ef4e290a15734a"
+          test "$(git hash-object safe-proof/scripts/phase-3-4-safe-entrypoint.mjs)" = "3b91881fe211cda79edefaebe0a953defd365056"
+          test "$(git hash-object safe-proof/scripts/phase-3-4-safe-entrypoint.sh)" = "7f8ae199e285c626a8e4965906930a7a4727efa7"
+          test "$(git hash-object safe-proof/scripts/pre-node-acceptance-boundary-selftest.mjs)" = "e0b69c30ebded0cc023e401da9683d0cc076034d"
+          test "$(git hash-object safe-proof/infra/npm/phase34-empty.npmrc)" = "5771bdf47dd51cefb9191e249e0ae388a450afaf"
+          test "$(git hash-object safe-proof/infra/npm/phase34-empty-global.npmrc)" = "169f18e2ddda949583b4f742c74ccd42e07bdf44"
+      - name: Run exact npm environment selftest
+        working-directory: safe-proof
+        run: node scripts/phase-3-4-npm-install-env.mjs --selftest
+      - name: Run exact pre-Node acceptance selftest
+        working-directory: safe-proof
+        run: node scripts/pre-node-acceptance-boundary-selftest.mjs
