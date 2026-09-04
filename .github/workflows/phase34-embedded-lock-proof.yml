@@ -1,0 +1,66 @@
+name: Phase34 embedded lock proof
+
+on:
+  push:
+    branches:
+      - phase34-embedded-lock-proof-20260905
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact toolchain and private verifier blob
+        run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object embedded-proof/scripts/phase-3-4-embedded-lockfile.mjs)" = "e5c658ee1b5573bc0978eefc5ddf31b68ab1f6b2"
+          test "$(git hash-object phase34-lock/package-lock.transport-verified.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+      - name: Generate exact private embedded parts from canonical source
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const crypto = require('node:crypto');
+          const zlib = require('node:zlib');
+          const source = fs.readFileSync('phase34-lock/package-lock.transport-verified.json');
+          const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
+          const gitBlob = (b) => crypto.createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
+          if (source.length !== 261242 || sha256(source) !== 'f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4' || gitBlob(source) !== 'dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af') throw new Error('canonical source identity mismatch');
+          const compressed = zlib.brotliCompressSync(source);
+          if (compressed.length !== 64464 || sha256(compressed) !== 'eb3c412540c423657926dcc6516b1f1393e9da56b588f18916984a7445e30b24') throw new Error('compressed identity mismatch');
+          const encoded = compressed.toString('base64');
+          if (encoded.length !== 85952) throw new Error('base64 length mismatch');
+          const specs = [
+            [15000, 'ba66c40458f0af1f0e5d909131f2fca6b9bbdf19'],
+            [15000, '2af54bc9a6122bd30c55e53a28b34c7a79a7d474'],
+            [15000, 'f67d9c601a454f522db4c07fb2f0bf0c98dc53df'],
+            [10000, 'aa2c57cda315888687d69f215a10d720fc58e1a7'],
+            [5000, '76c0dccdf35f22de6c171c21a8b1258ce26c7afe'],
+            [15000, '269f20723887e8ab86f8f327ad9ed7d27b2974ec'],
+            [10952, '45f238dfb87429d335cf8e42efcd55796f631be2'],
+          ];
+          const dir = 'embedded-proof/infra/lockfile';
+          fs.mkdirSync(dir, { recursive: true });
+          let offset = 0;
+          for (let i = 0; i < specs.length; i += 1) {
+            const [length, expectedBlob] = specs[i];
+            const raw = Buffer.from(encoded.slice(offset, offset + length) + '\n', 'utf8');
+            if (gitBlob(raw) !== expectedBlob) throw new Error(`part ${i + 1} blob mismatch`);
+            fs.writeFileSync(path.join(dir, `phase34-lockfile.part-${String(i + 1).padStart(2, '0')}.br.b64`), raw);
+            offset += length;
+          }
+          if (offset !== encoded.length) throw new Error('part coverage mismatch');
+          console.log('generated private-equivalent embedded parts: 7/7');
+          NODE
+      - name: Run exact embedded verifier
+        working-directory: embedded-proof
+        run: node scripts/phase-3-4-embedded-lockfile.mjs --verify-only
