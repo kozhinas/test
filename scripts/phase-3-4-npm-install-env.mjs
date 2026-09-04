@@ -6,7 +6,13 @@ const modulePath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(modulePath), '..');
 const NPM_CONFIG_PREFIX = 'npm_config_';
 const FORBIDDEN_NODE_RUNTIME_ENV = new Set(['node_options', 'node_path']);
-const SCRUBBED_ACCEPTANCE_ENV = new Set(['node_env']);
+const SCRUBBED_ACCEPTANCE_ENV = new Set([
+  'node_env',
+  'expo_public_signaling_url',
+  'expo_public_backend_url',
+  'expo_public_phase34_acceptance',
+  'expo_public_phase34_deployment_id',
+]);
 
 export function phase34NpmInstallEnvironment(root = defaultRoot, baseEnv = process.env) {
   assertPhase34NodeRuntimeBoundary(baseEnv);
@@ -84,12 +90,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
     HOME: '/phase34/home',
     NODE_ENV: 'production',
     NoDe_EnV: 'production-shadow',
+    EXPO_PUBLIC_SIGNALING_URL: 'wss://ambient.example.invalid/v1',
+    expo_public_backend_url: 'https://ambient.example.invalid',
+    EXPO_PUBLIC_PHASE34_ACCEPTANCE: '1',
+    Expo_Public_Phase34_Deployment_Id: 'ambient-deployment-id',
     npm_config_allow_scripts: 'unexpected-package',
     NPM_CONFIG_REGISTRY: 'http://example.invalid/',
     NpM_Config_Strict_Ssl: 'false',
     npm_config_ignore_scripts: 'true',
     npm_config_cache: '/phase34/untrusted-cache',
-    EXPO_PUBLIC_BACKEND_URL: 'https://phase34.example.invalid',
+    PHASE34_SENTINEL: 'preserved',
   };
   const sanitized = phase34NpmInstallEnvironment(defaultRoot, fakeEnv);
   const remainingAmbient = Object.keys(sanitized).filter(
@@ -103,19 +113,19 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
       `phase34 npm install env selftest: inherited npm config survived (${remainingAmbient.join(', ')})`,
     );
   }
-  const remainingNodeEnv = Object.keys(sanitized).filter(
-    (key) => key.toLowerCase() === 'node_env',
+  const remainingAcceptanceEnv = Object.keys(sanitized).filter((key) =>
+    SCRUBBED_ACCEPTANCE_ENV.has(key.toLowerCase()),
   );
-  if (remainingNodeEnv.length > 0) {
+  if (remainingAcceptanceEnv.length > 0) {
     throw new Error(
-      `phase34 npm install env selftest: inherited NODE_ENV survived (${remainingNodeEnv.join(', ')})`,
+      `phase34 npm install env selftest: inherited acceptance environment survived (${remainingAcceptanceEnv.join(', ')})`,
     );
   }
   if (sanitized.PATH !== fakeEnv.PATH || sanitized.HOME !== fakeEnv.HOME) {
     throw new Error('phase34 npm install env selftest: unrelated environment was not preserved');
   }
-  if (sanitized.EXPO_PUBLIC_BACKEND_URL !== fakeEnv.EXPO_PUBLIC_BACKEND_URL) {
-    throw new Error('phase34 npm install env selftest: unrelated application environment was not preserved');
+  if (sanitized.PHASE34_SENTINEL !== fakeEnv.PHASE34_SENTINEL) {
+    throw new Error('phase34 npm install env selftest: unrelated Phase 3/4 environment was not preserved');
   }
 
   const expectedUserConfigPath = path.join(defaultRoot, 'infra', 'npm', 'phase34-empty.npmrc');
@@ -151,6 +161,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
   }
 
   console.info(
-    'phase-3-4.npm-install-env selftest ok ambient-npm-config=scrubbed ambient-node-env=scrubbed-case-insensitive node-runtime-injection=forbidden-case-insensitive userconfig=pinned-empty globalconfig=pinned-empty distinct-config-files project-npmrc=forbidden',
+    'phase-3-4.npm-install-env selftest ok ambient-npm-config=scrubbed ambient-node-env=scrubbed ambient-phase34-expo=scrubbed case-insensitive node-runtime-injection=forbidden userconfig=pinned-empty globalconfig=pinned-empty distinct-config-files project-npmrc=forbidden',
   );
 }
