@@ -42,3 +42,5 @@ jobs:
         run: |
           printf '%s\n' 'allow-scripts=unexpected-package' > "$NPM_CONFIG_USERCONFIG"
           npm run sanitized-ci
+      - name: Execute exact messenger npm env helper selftest
+        run: node exact/scripts/phase-3-4-npm-install-env.mjs --selftest
