@@ -1,0 +1,61 @@
+name: Phase34 full lock include-dev proof
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Pin npm
+        run: npm install --global npm@11.19.0 --audit=false --fund=false
+      - name: Install exact pinned Phase 3/4 dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          cd phase34-lock
+          cp package-lock.transport-verified.json package-lock.json
+          echo 'f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4  package-lock.json' | sha256sum -c -
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+          pkg.allowScripts = {
+            'esbuild@0.28.2': true,
+            'fsevents@2.3.3': true,
+          };
+          await writeFile('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+          mkdir -p .phase34-npm
+          printf '%s\n' '# intentionally empty user npm config' > .phase34-npm/user.npmrc
+          printf '%s\n' '# intentionally empty global npm config' > .phase34-npm/global.npmrc
+          env -u NODE_ENV \
+            npm_config_userconfig="$PWD/.phase34-npm/user.npmrc" \
+            npm_config_globalconfig="$PWD/.phase34-npm/global.npmrc" \
+            npm ci \
+              --include=dev \
+              --registry=https://registry.npmjs.org/ \
+              --replace-registry-host=never \
+              --strict-allow-scripts=true \
+              --dangerously-allow-all-scripts=false \
+              --ignore-scripts=false \
+              --strict-ssl=true \
+              --audit=false \
+              --fund=false
+          echo 'f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4  package-lock.json' | sha256sum -c -
+          test -x node_modules/.bin/tsc
+          test -x node_modules/.bin/vitest
+          test -x node_modules/.bin/esbuild
+          test "$(node_modules/.bin/esbuild --version)" = "0.28.2"
+          node -e "const p=require('./node_modules/typescript/package.json'); if(p.version!=='6.0.3') process.exit(1)"
+          echo 'phase34 full pinned graph include-dev proof ok'
