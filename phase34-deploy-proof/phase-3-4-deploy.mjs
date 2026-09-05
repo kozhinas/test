@@ -243,6 +243,7 @@ function openWebSocketAndRoundTrip(url) {
       try {
         socket.close(1000, 'phase34_probe');
       } catch {
+        // The round-trip already succeeded; close failures are irrelevant to acceptance.
       }
       resolve();
     };
@@ -254,6 +255,7 @@ function openWebSocketAndRoundTrip(url) {
       try {
         socket.close();
       } catch {
+        // Ignore cleanup failures while surfacing the original deployment probe error.
       }
       reject(error);
     };
@@ -296,6 +298,7 @@ function openWebSocketAndRoundTrip(url) {
           settleResolve();
         }
       } catch {
+        // Ignore unrelated/non-JSON frames; the matching pong remains mandatory.
       }
     });
 
