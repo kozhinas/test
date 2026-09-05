@@ -1,0 +1,3 @@
+# Phase 3/4 embedded lockfile parts are hashed as exact Git blob bytes.
+# Never apply checkout EOL conversion to these committed base64 fragments.
+infra/lockfile/*.br.b64 -text
