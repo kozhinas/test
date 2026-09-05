@@ -26,6 +26,8 @@ jobs:
           test "$(npm -v)" = "11.19.0"
           test "$(git hash-object phase-3-4-closure.mjs)" = "8ab420071d9a2d2b65544b15f6c4358f7e8bd2e3"
           test "$(git hash-object phase-3-4-closure-selftest.mjs)" = "b029413bdc037773aaa78842cc4966ed38f1606e"
+          mkdir -p scripts
+          cp phase-3-4-closure.mjs scripts/phase-3-4-closure.mjs
       - name: Execute current closure state-machine selftest
         working-directory: phase34-closure-proof
         run: node phase-3-4-closure-selftest.mjs
