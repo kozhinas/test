@@ -1,0 +1,38 @@
+name: Phase34 Current Bootstrap Proof
+
+on:
+  push:
+    branches:
+      - phase34-current-bootstrap-proof-20260905
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Pin npm 11.19.0
+        run: npm install --global npm@11.19.0 --ignore-scripts
+      - name: Verify exact toolchain
+        run: |
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+      - name: Verify fixture byte identity
+        run: |
+          test "$(git hash-object phase34-current-bootstrap/scripts/phase-3-4-safe-entrypoint.sh)" = "7f8ae199e285c626a8e4965906930a7a4727efa7"
+          test "$(git hash-object phase34-current-bootstrap/scripts/phase-3-4-safe-entrypoint.mjs)" = "a84b568fa10dbdcda156244867303ad9bd765d0d"
+          test "$(git hash-object phase34-current-bootstrap/scripts/phase-3-4-npm-install-env.mjs)" = "3a12fdba81486e399d9aa2230637753debcb0ceb"
+          test "$(git hash-object phase34-current-bootstrap/scripts/pre-node-acceptance-boundary-selftest.mjs)" = "a517feec46d6453a4c5f09b6560fd09dfecaff64"
+          test "$(git hash-object phase34-current-bootstrap/infra/npm/phase34-empty.npmrc)" = "5771bdf47dd51cefb9191e249e0ae388a450afaf"
+          test "$(git hash-object phase34-current-bootstrap/infra/npm/phase34-empty-global.npmrc)" = "169f18e2ddda949583b4f742c74ccd42e07bdf44"
+      - name: Run exact npm environment selftest
+        working-directory: phase34-current-bootstrap
+        run: node scripts/phase-3-4-npm-install-env.mjs --selftest
+      - name: Run exact pre-Node bootstrap selftest
+        working-directory: phase34-current-bootstrap
+        run: node scripts/pre-node-acceptance-boundary-selftest.mjs
