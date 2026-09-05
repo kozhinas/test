@@ -1,0 +1,63 @@
+name: Phase34 current supply-chain proof
+
+on:
+  push:
+    branches: [phase34-lock-export-20260831]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current fixture blobs
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object package.json)" = "59aa3afcb00463b002086c9f705cfafa7bff4880"
+          test "$(git hash-object mobile/package.json)" = "516c7cedf04dcc1e8c6944d46b3c90e90c590848"
+          test "$(git hash-object packages/protocol/package.json)" = "87ab07cf0e2b44fa4bb12ce7e674c55c887b76d9"
+          test "$(git hash-object server/package.json)" = "b1bfaf50bda8c77217909380c458804aff334fb1"
+          test "$(git hash-object scripts/lockfile-supply-chain-guard.mjs)" = "20a5ed930db9fe4670ed8570012a29e76d85ae41"
+          test "$(git hash-object scripts/lockfile-supply-chain-selftest.mjs)" = "cac9b5c64ecb4169148012fbda02add72dbf4f01"
+          test "$(git hash-object package-lock.transport-verified.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+          test "$(sha256sum package-lock.transport-verified.json | cut -d' ' -f1)" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          cp package-lock.transport-verified.json package-lock.json
+      - name: Run current supply-chain guard and negative selftest
+        working-directory: phase34-lock
+        run: |
+          node scripts/lockfile-supply-chain-guard.mjs
+          node scripts/lockfile-supply-chain-selftest.mjs
+      - name: Real strict npm ci with current policy
+        working-directory: phase34-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/phase34-user.npmrc
+          : > /tmp/phase34-global.npmrc
+          npm ci \
+            --include=dev \
+            --registry=https://registry.npmjs.org/ \
+            --replace-registry-host=never \
+            --strict-allow-scripts=true \
+            --dangerously-allow-all-scripts=false \
+            --ignore-scripts=false \
+            --strict-ssl=true \
+            --audit=false \
+            --fund=false \
+            --userconfig=/tmp/phase34-user.npmrc \
+            --globalconfig=/tmp/phase34-global.npmrc
+          test "$(./node_modules/.bin/esbuild --version)" = "0.28.2"
+          test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+          node scripts/lockfile-supply-chain-guard.mjs
