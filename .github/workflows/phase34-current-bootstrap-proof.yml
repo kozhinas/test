@@ -28,6 +28,9 @@ jobs:
           test "$(git hash-object phase34-current-bootstrap/scripts/phase-3-4-safe-entrypoint.mjs)" = "a84b568fa10dbdcda156244867303ad9bd765d0d"
           test "$(git hash-object phase34-current-bootstrap/scripts/phase-3-4-npm-install-env.mjs)" = "3a12fdba81486e399d9aa2230637753debcb0ceb"
           test "$(git hash-object phase34-current-bootstrap/scripts/pre-node-acceptance-boundary-selftest.mjs)" = "a517feec46d6453a4c5f09b6560fd09dfecaff64"
+          test "$(git hash-object phase34-current-bootstrap/scripts/pre-node-acceptance-boundary-guard.mjs)" = "0fe0d95e57e50862f4bb4375d23752d55090d9bb"
+          test "$(git hash-object phase34-current-bootstrap/scripts/phase-3-4-static-validation.mjs)" = "bb8dd9d5fd1b2f929e2f0a840356321d15d73d42"
+          test "$(git hash-object phase34-current-bootstrap/.github/workflows/ci.yml)" = "abc4cb5a0613c3aa6a0d833fea0bf1d505d60fb3"
           test "$(git hash-object phase34-current-bootstrap/infra/npm/phase34-empty.npmrc)" = "5771bdf47dd51cefb9191e249e0ae388a450afaf"
           test "$(git hash-object phase34-current-bootstrap/infra/npm/phase34-empty-global.npmrc)" = "169f18e2ddda949583b4f742c74ccd42e07bdf44"
       - name: Run exact npm environment selftest
@@ -36,3 +39,6 @@ jobs:
       - name: Run exact pre-Node bootstrap selftest
         working-directory: phase34-current-bootstrap
         run: node scripts/pre-node-acceptance-boundary-selftest.mjs
+      - name: Run exact current pre-Node guard
+        working-directory: phase34-current-bootstrap
+        run: node scripts/pre-node-acceptance-boundary-guard.mjs
