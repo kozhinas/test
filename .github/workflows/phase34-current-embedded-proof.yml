@@ -19,7 +19,12 @@ jobs:
       - name: Verify exact current private fixture blobs
         run: |
           test "$(git hash-object phase34-current-embedded/scripts/phase-3-4-embedded-lockfile.mjs)" = "59e7575891dc2f6f52513f87ee5268eedefe8ed7"
+          test "$(git hash-object phase34-current-embedded/scripts/embedded-lockfile-checkout-guard.mjs)" = "d1947da659d67a63253218257f35174df0619103"
           test "$(git hash-object phase34-current-embedded/infra/lockfile/README.md)" = "e6545e8509a3120d69c69ff5925e40b080273f2f"
+          test "$(git hash-object phase34-current-embedded/.gitattributes)" = "cd2058d144d068d24798cd027759c525b8a9387a"
+      - name: Execute exact current embedded checkout guard
+        working-directory: phase34-current-embedded
+        run: node scripts/embedded-lockfile-checkout-guard.mjs
       - name: Rebuild exact committed part bytes from immutable source
         working-directory: phase34-current-embedded
         run: |
