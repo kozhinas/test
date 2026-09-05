@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # releases-v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.20.0
+      - name: Validate Phase 3/4 code
+        run: sh scripts/phase-3-4-safe-entrypoint.sh validate
+      - name: Smoke Phase 3/4 Android Release native build
+        run: sh scripts/phase-3-4-safe-entrypoint.sh native-smoke-android
+      - name: Build Phase 3/4 signaling image
+        run: docker build --file server/Dockerfile --tag private-p2p-messenger-phase34-ci .
+      - name: Smoke Phase 3/4 signaling image
+        run: sh scripts/phase-3-4-safe-entrypoint.sh image-smoke
+      - name: Smoke Phase 3/4 Compose stack
+        run: sh scripts/phase-3-4-safe-entrypoint.sh compose-smoke
