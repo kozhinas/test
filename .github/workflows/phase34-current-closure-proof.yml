@@ -1,0 +1,31 @@
+name: Phase34 current closure state-machine proof
+
+on:
+  push:
+    branches: [phase34-lock-export-20260831]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current closure blobs
+        working-directory: phase34-closure-proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object phase-3-4-closure.mjs)" = "8ab420071d9a2d2b65544b15f6c4358f7e8bd2e3"
+          test "$(git hash-object phase-3-4-closure-selftest.mjs)" = "b029413bdc037773aaa78842cc4966ed38f1606e"
+      - name: Execute current closure state-machine selftest
+        working-directory: phase34-closure-proof
+        run: node phase-3-4-closure-selftest.mjs
