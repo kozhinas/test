@@ -1,0 +1,37 @@
+name: Phase34 current npm install env boundary proof
+
+on:
+  push:
+    branches: [phase34-npm-env-guard-proof-20260905]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current boundary blobs
+        working-directory: phase34-current-bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object scripts/phase-3-4-safe-entrypoint.sh)" = "7f8ae199e285c626a8e4965906930a7a4727efa7"
+          test "$(git hash-object scripts/phase-3-4-npm-install-env.mjs)" = "3a12fdba81486e399d9aa2230637753debcb0ceb"
+          test "$(git hash-object scripts/npm-install-env-boundary-guard.mjs)" = "f7324c494aabfc40a9461068c4176e77a7f588f1"
+          test "$(git hash-object scripts/phase-3-4-code-validation.mjs)" = "05e8872c0bcb2798e3745c43a84a8f526bb5b45a"
+          test "$(git hash-object scripts/phase-3-4-native-build.mjs)" = "df895cfc16af90990a5bda77ca04c4ecd98efea6"
+          test "$(git hash-object scripts/phase-3-4-native-prebuild-smoke.mjs)" = "c3c33aa0b7a47b13eac9e5a79a525af6f2a28245"
+          test "$(git hash-object infra/npm/phase34-empty.npmrc)" = "5771bdf47dd51cefb9191e249e0ae388a450afaf"
+          test "$(git hash-object infra/npm/phase34-empty-global.npmrc)" = "169f18e2ddda949583b4f742c74ccd42e07bdf44"
+      - name: Execute exact current npm install env boundary guard
+        working-directory: phase34-current-bootstrap
+        run: node scripts/npm-install-env-boundary-guard.mjs
