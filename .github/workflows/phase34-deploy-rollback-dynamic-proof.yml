@@ -1,0 +1,142 @@
+name: Phase34 deploy rollback dynamic proof
+
+on:
+  push:
+    branches:
+      - phase34-deploy-rollback-dynamic-proof-20260906
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Execute exact deploy rollback state transitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+
+          src="$GITHUB_WORKSPACE/phase34-current-head-delta-proof"
+          test "$(git hash-object "$src/scripts/phase-3-4-deploy.mjs")" = "a721f34dd749b7eb03aa10a76ef491225819684a"
+
+          fixture="$(mktemp -d)"
+          stubbin="$(mktemp -d)"
+          trap 'rm -rf "$fixture" "$stubbin"' EXIT
+          mkdir -p "$fixture/scripts" "$fixture/infra" "$fixture/mobile"
+          cp "$src/scripts/phase-3-4-deploy.mjs" "$fixture/scripts/phase-3-4-deploy.mjs"
+
+          cat > "$fixture/scripts/phase-3-4-health.mjs" <<'EOF'
+          export async function readPhase34Health() {
+            return { deploymentId: process.env.PHASE34_DEPLOYMENT_ID ?? 'unused' };
+          }
+          EOF
+
+          cat > "$fixture/scripts/phase-3-4-mobile-config.mjs" <<'EOF'
+          export async function phase34MobileConfigFingerprint() {
+            return 'synthetic-fingerprint';
+          }
+          export async function readPhase34MobileConfig() {
+            return { backendUrl: 'https://unused.invalid', signalingUrl: 'wss://unused.invalid/v1' };
+          }
+          EOF
+
+          cat > "$fixture/scripts/phase-3-4-compose.mjs" <<'EOF'
+          import { appendFileSync } from 'node:fs';
+          const args = process.argv.slice(2);
+          const log = process.env.PHASE34_PROOF_LOG;
+          if (!log) throw new Error('PHASE34_PROOF_LOG missing');
+          appendFileSync(log, `compose ${args.join(' ')}\n`);
+          if (args[0] === 'up') process.exit(0);
+          if (args[0] === '--capture' && args[1] === 'ps') {
+            process.stdout.write('signaling\nreverse-proxy\n');
+            process.exit(0);
+          }
+          if (args[0] === 'down') {
+            if (process.env.PHASE34_DOWN_FAIL === '1') process.exit(43);
+            process.exit(0);
+          }
+          process.exit(44);
+          EOF
+
+          cat > "$stubbin/npm" <<'EOF'
+          #!/bin/sh
+          set -eu
+          printf 'npm %s\n' "$*" >> "$PHASE34_PROOF_LOG"
+          if [ "${PHASE34_PREFLIGHT_FAIL:-0}" = "1" ]; then
+            exit 42
+          fi
+          exit 0
+          EOF
+          chmod +x "$stubbin/npm"
+
+          cat > "$fixture/.gitignore" <<'EOF'
+          infra/deployment-gate-evidence.json
+          EOF
+
+          cd "$fixture"
+          git init -q
+          git config user.email phase34-proof@example.invalid
+          git config user.name 'Phase34 Proof'
+          git config commit.gpgsign false
+          git add .
+          git commit -qm fixture
+          test "$(git hash-object scripts/phase-3-4-deploy.mjs)" = "a721f34dd749b7eb03aa10a76ef491225819684a"
+
+          # Scenario A: a preflight-only failure must preserve prior evidence and never touch Compose.
+          printf 'existing-evidence\n' > infra/deployment-gate-evidence.json
+          log_a="$(mktemp)"
+          if PATH="$stubbin:$PATH" PHASE34_PROOF_LOG="$log_a" PHASE34_PREFLIGHT_FAIL=1 \
+            node scripts/phase-3-4-deploy.mjs >/tmp/phase34-a.out 2>/tmp/phase34-a.err; then
+            echo 'ERROR: preflight failure unexpectedly succeeded' >&2
+            exit 1
+          fi
+          grep -qx 'existing-evidence' infra/deployment-gate-evidence.json
+          if grep -q '^compose ' "$log_a"; then
+            echo 'ERROR: preflight failure touched Compose' >&2
+            cat "$log_a" >&2
+            exit 1
+          fi
+          test -z "$(git status --porcelain=v1 --untracked-files=normal)"
+
+          # Scenario B: once provisioning starts, later failure must clear evidence and tear down once.
+          log_b="$(mktemp)"
+          if PATH="$stubbin:$PATH" PHASE34_PROOF_LOG="$log_b" \
+            node scripts/phase-3-4-deploy.mjs >/tmp/phase34-b.out 2>/tmp/phase34-b.err; then
+            echo 'ERROR: missing-service failure unexpectedly succeeded' >&2
+            exit 1
+          fi
+          test ! -e infra/deployment-gate-evidence.json
+          test "$(grep -c '^compose up -d --build$' "$log_b")" = "1"
+          test "$(grep -c '^compose --capture ps --status running --services$' "$log_b")" = "1"
+          test "$(grep -c '^compose down$' "$log_b")" = "1"
+          up_line="$(grep -n '^compose up -d --build$' "$log_b" | cut -d: -f1)"
+          ps_line="$(grep -n '^compose --capture ps --status running --services$' "$log_b" | cut -d: -f1)"
+          down_line="$(grep -n '^compose down$' "$log_b" | cut -d: -f1)"
+          test "$up_line" -lt "$ps_line"
+          test "$ps_line" -lt "$down_line"
+          test -z "$(git status --porcelain=v1 --untracked-files=normal)"
+
+          # Scenario C: rollback failure must preserve the original failure and rollback failure together.
+          printf 'stale-evidence\n' > infra/deployment-gate-evidence.json
+          log_c="$(mktemp)"
+          if PATH="$stubbin:$PATH" PHASE34_PROOF_LOG="$log_c" PHASE34_DOWN_FAIL=1 \
+            node scripts/phase-3-4-deploy.mjs >/tmp/phase34-c.out 2>/tmp/phase34-c.err; then
+            echo 'ERROR: rollback-failure scenario unexpectedly succeeded' >&2
+            exit 1
+          fi
+          test ! -e infra/deployment-gate-evidence.json
+          test "$(grep -c '^compose down$' "$log_c")" = "1"
+          grep -q 'phase34 deployment failed and rollback was incomplete' /tmp/phase34-c.err
+          grep -q 'required services are not running: coturn' /tmp/phase34-c.err
+          grep -q 'docker compose down failed' /tmp/phase34-c.err
+          test -z "$(git status --porcelain=v1 --untracked-files=normal)"
+
+          echo 'phase34 deploy rollback dynamic proof ok preflight-preserved post-provision-down aggregate-error'
