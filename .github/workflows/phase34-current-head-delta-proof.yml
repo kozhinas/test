@@ -1,0 +1,60 @@
+name: Phase34 current head delta proof
+
+on:
+  push:
+    branches:
+      - phase34-current-head-delta-proof-20260906
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact toolchain and current private-HEAD fixture blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object phase34-current-head-delta-proof/package.json)" = "59aa3afcb00463b002086c9f705cfafa7bff4880"
+          test "$(git hash-object phase34-current-head-delta-proof/mobile/package.json)" = "516c7cedf04dcc1e8c6944d46b3c90e90c590848"
+          test "$(git hash-object phase34-current-head-delta-proof/packages/protocol/package.json)" = "87ab07cf0e2b44fa4bb12ce7e674c55c887b76d9"
+          test "$(git hash-object phase34-current-head-delta-proof/server/package.json)" = "b1bfaf50bda8c77217909380c458804aff334fb1"
+          test "$(git hash-object phase34-current-head-delta-proof/scripts/phase-3-4-lockfile-check.mjs)" = "0012acdffef22a5390a9316b585567c9901746b6"
+          test "$(git hash-object phase34-current-head-delta-proof/scripts/lockfile-supply-chain-guard.mjs)" = "20a5ed930db9fe4670ed8570012a29e76d85ae41"
+      - name: Materialize exact verified lockfile bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp phase34-lock/package-lock.transport-verified.json phase34-current-head-delta-proof/package-lock.json
+          test "$(sha256sum phase34-current-head-delta-proof/package-lock.json | awk '{print $1}')" = "f017a37b9e62b2c24ee665b74998397b7e34d403c845b10ce8865dc293f41be4"
+          test "$(git hash-object phase34-current-head-delta-proof/package-lock.json)" = "dddf2eefca5cf347dbc3b48eb185ee4ccd9f24af"
+          git add -N phase34-current-head-delta-proof/package-lock.json
+      - name: Execute current generic checker and dedicated supply-chain guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd phase34-current-head-delta-proof
+          node scripts/phase-3-4-lockfile-check.mjs --strict
+          node scripts/lockfile-supply-chain-guard.mjs
+      - name: Prove current generic checker still rejects manifest drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd phase34-current-head-delta-proof
+          cp mobile/package.json /tmp/phase34-mobile-package.json
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('mobile/package.json','utf8'));p.dependencies.expo='0.0.0-invalid';fs.writeFileSync('mobile/package.json',JSON.stringify(p,null,2)+'\n')"
+          if node scripts/phase-3-4-lockfile-check.mjs --strict; then
+            echo 'ERROR: current checker accepted manifest drift' >&2
+            exit 1
+          fi
+          cp /tmp/phase34-mobile-package.json mobile/package.json
+          node scripts/phase-3-4-lockfile-check.mjs --strict
+          node scripts/lockfile-supply-chain-guard.mjs
