@@ -1,0 +1,58 @@
+name: Phase34 current static delta proof
+
+on:
+  push:
+    branches: [phase34-current-static-delta-proof-20260906]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current fixture blobs
+        run: |
+          test "$(git hash-object phase34-current-static-delta-proof/scripts/phase-3-4-static-validation.mjs)" = "6b421d7902dbb17f5b65cb37d8f66c5f05f25a0f"
+          test "$(git hash-object phase34-current-static-delta-proof/scripts/protocol-native-entry-guard.mjs)" = "905fc8118ad4cf27b22eeec3ed871b8619bce890"
+          test "$(git hash-object phase34-current-static-delta-proof/packages/protocol/package.json)" = "87ab07cf0e2b44fa4bb12ce7e674c55c887b76d9"
+          test "$(git hash-object phase34-current-static-delta-proof/mobile/package.json)" = "516c7cedf04dcc1e8c6944d46b3c90e90c590848"
+          test "$(git hash-object phase34-current-static-delta-proof/packages/protocol/src/index.ts)" = "e1e43f4e427da3942ef9dfc49bf01161673b1b16"
+      - name: Verify all nine post-baseline static checks are wired
+        working-directory: phase34-current-static-delta-proof
+        run: |
+          for token in \
+            "scripts/pre-node-acceptance-boundary-guard.mjs" \
+            "scripts/pre-node-acceptance-boundary-selftest.mjs" \
+            "scripts/npm-install-env-boundary-guard.mjs" \
+            "scripts/phase-3-4-embedded-lockfile.mjs" \
+            "scripts/embedded-lockfile-checkout-guard.mjs" \
+            "scripts/phase-3-4-closure-selftest.mjs" \
+            "scripts/closure-evidence-binding-guard.mjs" \
+            "scripts/protocol-native-entry-guard.mjs" \
+            "scripts/deployment-failure-cleanup-guard.mjs"; do
+            test "$(grep -Foc "$token" scripts/phase-3-4-static-validation.mjs)" = "1"
+          done
+      - name: Execute exact current protocol native entry guard
+        working-directory: phase34-current-static-delta-proof
+        run: node scripts/protocol-native-entry-guard.mjs
+      - name: Prove React Native source-entry regression fails closed
+        run: |
+          cp -R phase34-current-static-delta-proof /tmp/phase34-native-entry-negative
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = '/tmp/phase34-native-entry-negative/packages/protocol/package.json';
+          const value = JSON.parse(fs.readFileSync(p, 'utf8'));
+          value['react-native'] = 'src/index.ts';
+          fs.writeFileSync(p, JSON.stringify(value, null, 2) + '\n');
+          NODE
+          if (cd /tmp/phase34-native-entry-negative && node scripts/protocol-native-entry-guard.mjs); then
+            echo 'negative fixture unexpectedly passed' >&2
+            exit 1
+          fi
