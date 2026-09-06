@@ -1,0 +1,56 @@
+name: Phase34 deploy rollback proof
+
+on:
+  push:
+    branches:
+      - phase34-deploy-rollback-proof-20260906
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current private-HEAD rollback fixture blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object phase34-current-head-delta-proof/package.json)" = "59aa3afcb00463b002086c9f705cfafa7bff4880"
+          test "$(git hash-object phase34-current-head-delta-proof/scripts/phase-3-4-deploy.mjs)" = "a721f34dd749b7eb03aa10a76ef491225819684a"
+          test "$(git hash-object phase34-current-head-delta-proof/scripts/deployment-failure-cleanup-guard.mjs)" = "4a0746a0f44c697749f9bcc333765aa47e5545c7"
+          test "$(git hash-object phase34-current-head-delta-proof/scripts/phase-3-4-static-validation.mjs)" = "6b421d7902dbb17f5b65cb37d8f66c5f05f25a0f"
+      - name: Execute exact current deployment rollback guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd phase34-current-head-delta-proof
+          node scripts/deployment-failure-cleanup-guard.mjs
+      - name: Prove rollback guard rejects missing compose teardown
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd phase34-current-head-delta-proof
+          cp scripts/phase-3-4-deploy.mjs /tmp/phase34-deploy.mjs
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = 'scripts/phase-3-4-deploy.mjs';
+          const src = fs.readFileSync(p, 'utf8');
+          const needle = "run(process.execPath, ['scripts/phase-3-4-compose.mjs', 'down']);";
+          if (!src.includes(needle)) throw new Error('rollback teardown marker missing before mutation');
+          fs.writeFileSync(p, src.replace(needle, '// rollback teardown deliberately removed by negative proof'));
+          NODE
+          if node scripts/deployment-failure-cleanup-guard.mjs; then
+            echo 'ERROR: rollback guard accepted missing compose teardown' >&2
+            exit 1
+          fi
+          cp /tmp/phase34-deploy.mjs scripts/phase-3-4-deploy.mjs
+          test "$(git hash-object scripts/phase-3-4-deploy.mjs)" = "a721f34dd749b7eb03aa10a76ef491225819684a"
+          node scripts/deployment-failure-cleanup-guard.mjs
