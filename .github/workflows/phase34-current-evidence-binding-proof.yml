@@ -1,0 +1,35 @@
+name: Phase34 current closure evidence binding proof
+
+on:
+  push:
+    branches: [phase34-current-evidence-binding-proof-20260906]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current fixture blobs
+        run: |
+          test "$(git hash-object phase34-current-evidence-proof/scripts/phase-3-4-closure.mjs)" = "8ab420071d9a2d2b65544b15f6c4358f7e8bd2e3"
+          test "$(git hash-object phase34-current-evidence-proof/scripts/phase-3-4-docker-closure.mjs)" = "808653cfab9e8a5586da2d9ca1f8d3761b468591"
+          test "$(git hash-object phase34-current-evidence-proof/scripts/closure-evidence-binding-guard.mjs)" = "29c3b7b3baee6001f6ee703d8b50395717f1ebf1"
+      - name: Execute exact current closure evidence binding guard
+        working-directory: phase34-current-evidence-proof
+        run: node scripts/closure-evidence-binding-guard.mjs
+      - name: Prove missing pair binding fails closed
+        run: |
+          cp -R phase34-current-evidence-proof /tmp/phase34-negative
+          sed -i '/assertEvidencePairBinding(deviceEvidence, deploymentEvidence);/d' /tmp/phase34-negative/scripts/phase-3-4-docker-closure.mjs
+          if (cd /tmp/phase34-negative && node scripts/closure-evidence-binding-guard.mjs); then
+            echo 'negative fixture unexpectedly passed' >&2
+            exit 1
+          fi
