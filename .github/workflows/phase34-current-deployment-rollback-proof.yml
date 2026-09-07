@@ -1,0 +1,31 @@
+name: Phase34 current deployment rollback proof
+
+on:
+  push:
+    branches: [phase34-lock-export-20260831]
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.20.0
+      - name: Verify exact current deployment rollback blobs
+        working-directory: phase34-deployment-rollback-proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -v)" = "v24.20.0"
+          test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object scripts/phase-3-4-deploy.mjs)" = "6ac52b0485e090be4a85372e9d619a5bbf02ea1e"
+          test "$(git hash-object scripts/deployment-failure-cleanup-selftest.mjs)" = "82fd73ec2358ca7dbff2a73af291c39464f011f9"
+      - name: Execute current deployment rollback selftest
+        working-directory: phase34-deployment-rollback-proof
+        run: node scripts/deployment-failure-cleanup-selftest.mjs
