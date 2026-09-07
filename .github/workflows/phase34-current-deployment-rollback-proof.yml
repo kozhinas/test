@@ -24,8 +24,15 @@ jobs:
           set -euo pipefail
           test "$(node -v)" = "v24.20.0"
           test "$(npm -v)" = "11.19.0"
+          test "$(git hash-object package.json)" = "59aa3afcb00463b002086c9f705cfafa7bff4880"
           test "$(git hash-object scripts/phase-3-4-deploy.mjs)" = "6ac52b0485e090be4a85372e9d619a5bbf02ea1e"
+          test "$(git hash-object scripts/phase-3-4-compose.mjs)" = "81e26546b6c1f2db4aa73ad3b20025657b32b2df"
           test "$(git hash-object scripts/deployment-failure-cleanup-selftest.mjs)" = "82fd73ec2358ca7dbff2a73af291c39464f011f9"
+          test "$(git hash-object scripts/deployment-failure-cleanup-guard.mjs)" = "dcc5cdeae94f77120646f0f2fbf0c81d1d6e438a"
+          test "$(git hash-object scripts/phase-3-4-static-validation.mjs)" = "b5a9bb190f0b546aab949171a40443db65d5270d"
       - name: Execute current deployment rollback selftest
         working-directory: phase34-deployment-rollback-proof
         run: node scripts/deployment-failure-cleanup-selftest.mjs
+      - name: Execute current deployment rollback guard
+        working-directory: phase34-deployment-rollback-proof
+        run: node scripts/deployment-failure-cleanup-guard.mjs
